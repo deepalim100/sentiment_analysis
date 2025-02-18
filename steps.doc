@@ -1,0 +1,180 @@
+**Deploying FastAPI with Docker on AWS EC2**
+
+## 1. **Create Your FastAPI Application**
+### **Project Structure**
+```
+/sentiment_analysis
+│── /app
+│   ├── main.py
+│   ├── models.py  # If applicable
+│   ├── routes.py  # If applicable
+│── requirements.txt
+│── Dockerfile
+│── .dockerignore
+│── sentiment.pem
+```
+
+### **FastAPI Code (`app/main.py`)**
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def home():
+    return {"message": "FastAPI is running!"}
+```
+
+### **Requirements File (`requirements.txt`)**
+```
+fastapi
+uvicorn
+torch
+transformers
+```
+
+---
+
+## 2. **Create Dockerfile**
+Create a `Dockerfile` in the project directory:
+```dockerfile
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the requirements.txt file into the container
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the entire project into the container
+COPY . .
+
+# Expose port 8000 for FastAPI
+EXPOSE 8000
+
+# Command to run the FastAPI app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
+## 3. **Build and Run the Docker Container Locally**
+### **Build the Docker Image**
+```bash
+docker build -t sentiment-analysis-app .
+```
+
+### **Run the Docker Container**
+```bash
+docker run -p 8000:8000 sentiment-analysis-app
+```
+
+Test by visiting `http://localhost:8000/` or running:
+```bash
+curl http://localhost:8000/
+```
+
+---
+
+## 4. **Deploy FastAPI on AWS EC2**
+### **Step 1: Create an EC2 Instance**
+1. Log in to [AWS Console](https://aws.amazon.com/console/).
+2. Navigate to **EC2 > Launch Instance**.
+3. Select **Ubuntu 20.04** or **Amazon Linux 2** as the AMI.
+4. Choose **t2.micro** (Free Tier eligible).
+5. Configure **Security Group**:
+   - Allow **port 22 (SSH)**
+   - Allow **port 8000 (for FastAPI)**
+6. Attach a key pair and download it as `sentiment.pem`.
+7. Launch the instance.
+
+---
+
+### **Step 2: SSH into the EC2 Instance**
+Set correct permissions for `.pem` file:
+```bash
+chmod 400 sentiment.pem
+```
+
+Connect to the instance:
+```bash
+ssh -i sentiment.pem ubuntu@<EC2_PUBLIC_IP>
+```
+
+---
+
+### **Step 3: Install Docker and Dependencies**
+```bash
+sudo apt update
+sudo apt install -y docker.io
+```
+
+Enable Docker:
+```bash
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+Add current user to Docker group:
+```bash
+sudo usermod -aG docker $USER
+```
+**Log out and log back in** for changes to take effect.
+
+---
+
+### **Step 4: Copy and Run the Docker Container on EC2**
+Copy project to EC2:
+```bash
+scp -i sentiment.pem -r sentiment_analysis ubuntu@<EC2_PUBLIC_IP>:~
+```
+
+SSH into EC2 and navigate to project:
+```bash
+ssh -i sentiment.pem ubuntu@<EC2_PUBLIC_IP>
+cd ~/sentiment_analysis
+```
+
+Build Docker image:
+```bash
+docker build -t sentiment-analysis-app .
+```
+
+Run the container:
+```bash
+docker run -d -p 8000:8000 sentiment-analysis-app
+```
+
+---
+
+### **Step 5: Access FastAPI App**
+- **Browser:** `http://<EC2_PUBLIC_IP>:8000/`
+- **CLI:**
+```bash
+curl http://<EC2_PUBLIC_IP>:8000/
+```
+Expected response:
+```json
+{"message": "FastAPI is running!"}
+```
+
+---
+
+## **Final Notes**
+- If the app is not accessible, check **AWS Security Group** settings.
+- **Stop container:**
+```bash
+docker ps  # Get container ID
+docker stop <container_id>
+```
+- **Restart app:**
+```bash
+docker start <container_id>
+```
+
+Now, your FastAPI app is running on AWS EC2 with Docker! 🚀
+
